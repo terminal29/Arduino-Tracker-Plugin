@@ -7,7 +7,7 @@ Plugin for OSVR that uses an Arduino + MPU to do rotational headtracking. Very u
 
 * Using Serial Library from https://github.com/wjwwood/serial
 
-* Using FreePIE Bridge Library from --
+* Using FreePIE IO Library from https://github.com/AndersMalmgren/FreePIE/tree/master/Lib/IO
 
 # How to use
 1. Assuming you have connected up the MPU to your Arduino properly, upload the Arduino script to the arduino, and test it by opening the serial at 115200 bitrate, and setting line endings to "Newline", and typing anything into the serial input. 
