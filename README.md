@@ -9,7 +9,7 @@ Plugin for OSVR that uses an Arduino + MPU to do rotational headtracking. Very u
 
 * Using FreePIE Bridge Library from --
 
-#How to use
+# How to use
 1. Assuming you have connected up the MPU to your Arduino properly, upload the Arduino script to the arduino, and test it by opening the serial at 115200 bitrate, and setting line endings to "Newline", and typing anything into the serial input. 
 If you get back:
 
@@ -21,7 +21,7 @@ If you get back:
 
 
 
-3. If you are using a generic HDMI output, edit your <i>osvr-server-config.json to include:
+3. If you are using a generic HDMI output, edit your *osvr-server-config.json* to include:
 
 		"display": "displays/Oculus_Rift_DK1.json",
 		"renderManagerConfig": "sample-configs/renderManager.extended.landscape.json",
