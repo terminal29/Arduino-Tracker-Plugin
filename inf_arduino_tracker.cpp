@@ -32,12 +32,6 @@ Sensics, Inc.
 #include <string>
 #include <windows.h>
 
-// Library/third-party includes
-#include <boost/algorithm/string.hpp>
-#include <iostream>
-#include <serial/serial.h>
-//#include "freepie_io.h"
-
 #define PLUGIN_NAME "Arduino Tracker"
 
 // Anonymous namespace to avoid symbol collision
@@ -62,117 +56,13 @@ namespace {
 			// Register update callback
 			m_dev.registerUpdateCallback(this);
 
-			/*
-			pieSlots = freepie_io_6dof_slots();
-			*/
-
-			std::string comPort;
-			bool serialOpen = false;
-			bool done = false;
-			do {
-				// Begin
-				std::cout << "[]----------------------------- " << PLUGIN_NAME << " -----------------------------[]" << std::endl;
-				std::cout << "[" << PLUGIN_NAME << "]: What COM port is your Arduino connected on? (ie. COM4)" << std::endl;
-				
-				// Get user port
-				std::cin >> comPort;
-				std::cout << "[" << PLUGIN_NAME << "]: Attempting to open port " << comPort << std::endl;
-				
-				//Create port object
-				int attempts = 0;
-				try {
-					// Try open the serial
-					d_serial = new serial::Serial(comPort, 115200, serial::Timeout::simpleTimeout(1000));
-
-					if (d_serial->isOpen()) {
-						serialOpen = true;
-					}
-				}
-				catch (serial::PortNotOpenedException pnoe) {
-					std::cout << "[" << PLUGIN_NAME << "]: Unable to open COM port." << std::endl;
-				}
-				catch (serial::IOException ioe) {
-					std::cout << "[" << PLUGIN_NAME << "]: IO Error occurred." << std::endl;
-				}
-				
-				//If serial has been opened but handshake has not been established...
-				while (serialOpen && attempts < 3) {
-					//try to send handshake
-					std::cout << "[" << PLUGIN_NAME << "] Attempting handshake " << (attempts+1) << "/3" << std::endl;
-					d_serial->write("Arduino Tracker Plugin Handshake\n");
-					std::string result = d_serial->readline();
-					if (result.compare("Hello from Arduino") == 0) {
-						done = true;
-						std::cout << "[" << PLUGIN_NAME << "]: Connection successful, resuming server loop." << std::endl;
-						break; //break out of handshake loop.
-					}
-					attempts++;
-				}
-
-				//If the handshake has not completed properly by now, attempts should be at 3
-				if (attempts >= 3) {
-					std::cout << "[" << PLUGIN_NAME << "]: Error completing handshakes." << std::endl;
-					std::cout << "[" << PLUGIN_NAME << "]: Check that the port is correct, and that the proper firmware has been loaded onto the microcontroller." << std::endl;
-					std::cout << "[" << PLUGIN_NAME << "]: Try again? (Y/N)" << std::endl;
-					std::string res;
-					std::cin >> res;
-					if (boost::iequals(res, "n")) {
-						break;
-					}
-				
-				}
-				//If the serial is not open by now, something has gone wrong
-				else if (!serialOpen) {
-					std::cout << "[" << PLUGIN_NAME << "]: Error opening serial port." << std::endl;
-					std::cout << "[" << PLUGIN_NAME << "]: Check that the port is correct, and that no other program is accessing that port." << std::endl;
-					std::cout << "[" << PLUGIN_NAME << "]: Try again? (Y/N)" << std::endl;
-					std::string res;
-					std::cin >> res;
-					if (boost::iequals(res, "n")) {
-						break;
-					}
-				}
-
-
-			} while (!done);
-			enableSerial = true;
-			osvrQuatSetIdentity(&m_state);
+			
 		}
 
 		OSVR_ReturnCode update() {
 
-			if (enableSerial) {
 
-				std::vector<float> gyroData = getGyroOrientation();
-
-				// If the arduino is sending rotation data
-				if (boost::iequals(orientationFormat, "q")) {
-
-					//Create Quaternion from Raw Data
-					OSVR_Quaternion rotation = { gyroData.at(0), gyroData.at(1), gyroData.at(2), gyroData.at(3) };
-
-					//Convert Quaternion to Axis-Angle format so we can rearrange the axes
-					AxisAngle axisAngle = quat2AAngle(rotation);
-					
-					//Rearrange and load into our rotation state objects
-					m_state = aAngle2Quat(axisAngle.a, -axisAngle.x, axisAngle.z, axisAngle.y);
-				}
-
-
-				/*
-				uint32_t result = freepie_io_6dof_read(pieSlots, pieSlots, &pieData);
-				if (result) {
-					m_pos_state = {pieData.x, pieData.y, pieData.z};
-					osvrDeviceTrackerSendPosition(m_dev, m_tracker, &m_pos_state, 0);
-				}
-				*/
-
-				//Send data to osvr
-				osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &m_state, 0);
-				loopCount++;
-			}
-
-			return OSVR_RETURN_SUCCESS;
+		return OSVR_RETURN_SUCCESS;
 		}
 
 	private:
@@ -180,58 +70,12 @@ namespace {
 		OSVR_TrackerDeviceInterface m_tracker;
 		OSVR_Quaternion m_state;
 		serial::Serial* d_serial;
-		bool enableSerial = false;
-		std::string orientationFormat = "q";
+
 		struct AxisAngle { float a, x, y, z; };
 		
 		OSVR_PositionState m_pos_state;
 		struct Vector3f { float x, y, z; };
-		uint32_t pieSlots;
-		/*freepie_io_6dof_data pieData;*/
-		int loopCount = 0;
 
-		std::vector<float> getGyroOrientation() {
-			std::vector<float> gyroData = { 0,0,0,0 };
-			std::string result;
-			//Request gyroscope quaternion rotation
-			try {
-				d_serial->write(orientationFormat + "\n");
-
-				//receive back gyroscope rotation in raw form
-				result = d_serial->readline();
-			}
-			catch (serial::IOException e) {
-				std::cout << "[" << PLUGIN_NAME << "]: Serial connection interrupted!" << std::endl;
-				std::cout << "[" << PLUGIN_NAME << "]: Please restart OSVR server and reconnect to the tracker." << std::endl;
-				// Kill the serial
-				enableSerial = false;
-				return gyroData;
-			}
-			/*
-			if (result[0] == 'c') {
-				std::cout << "[" << PLUGIN_NAME << "]: Tracker is calibrating, expect erratic movements until calibration is complete." << std::endl;
-				do {
-					result = d_serial->readline(); // sends a 'd' when its finished
-				} while (!(result[0] == 'd' || result[0] == 'q'));
-				std::cout << "[" << PLUGIN_NAME << "]: Tracker has finished calibrating, you are free to put on your headset again." << std::endl;
-			
-			}else */
-			if (result[0] == 'q') {
-				std::stringstream data(result);
-
-				std::string separated;
-				int iter = 0;
-				std::getline(data, separated, ':'); //remove the q: from the start
-
-				while (std::getline(data, separated, ':') && iter < 4) //4 quaternion rotations.
-				{
-					gyroData.at(iter) = atof(separated.c_str());
-					iter++;
-				}
-			}
-
-			return gyroData;
-		}
 
 		OSVR_Quaternion quatNormalize(OSVR_Quaternion &original) {
 			float a, b, c, d;
