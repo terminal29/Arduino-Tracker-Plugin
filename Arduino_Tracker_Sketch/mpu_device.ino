@@ -1,11 +1,4 @@
-#include "I2Cdev.h"
-#include "MPU6050_6Axis_MotionApps20.h"
-#include "MPU6050.h"
-#include <EEPROM.h>
 
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    #include "Wire.h"
-#endif
 
 mpu_device::mpu_device(VectorFloat gyro_offset, VectorFloat accel_offset):_gyro_offset(gyro_offset),_accel_offset(accel_offset){
   mpu_device::mpu = new MPU6050();
@@ -38,22 +31,23 @@ mpu_device::mpu_device(VectorFloat gyro_offset, VectorFloat accel_offset):_gyro_
 
 void mpu_device::calibrate(int accuracy){
   if(!dmp_ready) return;
-  int buffersize=accuracy;     //Amount of readings used to average, make it higher to get more precision but sketch will be slower  (default:1000)
+
+  int buffersize = accuracy;     //Amount of readings used to average, make it higher to get more precision but sketch will be slower  (default:1000)
   int acel_deadzone=8;     //Acelerometer error allowed, make it lower to get more precision, but sketch may not converge  (default:8)
   int giro_deadzone=1;     //Giro error allowed, make it lower to get more precision, but sketch may not converge  (default:1)
   int16_t ax, ay, az,gx, gy, gz;
   
   int mean_ax,mean_ay,mean_az,mean_gx,mean_gy,mean_gz;
   int ax_offset,ay_offset,az_offset,gx_offset,gy_offset,gz_offset;
-  
+
   mpu->setXAccelOffset(0);
   mpu->setYAccelOffset(0);
   mpu->setZAccelOffset(0);
   mpu->setXGyroOffset(0);
   mpu->setYGyroOffset(0);
   mpu->setZGyroOffset(0);
-  
-  mean_sensors(accuracy,&ax, &ay, &az, &gx, &gy, &gz, &mean_ax, &mean_ay, &mean_az, &mean_gx, &mean_gy, &mean_gz);
+  mean_sensors(buffersize, &ax, &ay, &az, &gx, &gy, &gz, &mean_ax, &mean_ay, &mean_az, &mean_gx, &mean_gy, &mean_gz);
+  delay(5);
 
   ax_offset=-mean_ax/8;
   ay_offset=-mean_ay/8;
@@ -63,6 +57,7 @@ void mpu_device::calibrate(int accuracy){
   gy_offset=-mean_gy/4;
   gz_offset=-mean_gz/4;
   while (1){
+    
     int ready=0;
     mpu->setXAccelOffset(ax_offset);
     mpu->setYAccelOffset(ay_offset);
@@ -72,7 +67,7 @@ void mpu_device::calibrate(int accuracy){
     mpu->setYGyroOffset(gy_offset);
     mpu->setZGyroOffset(gz_offset);
  
-    mean_sensors(accuracy,&ax, &ay, &az, &gx, &gy, &gz, &mean_ax, &mean_ay, &mean_az, &mean_gx, &mean_gy, &mean_gz);
+    mean_sensors(buffersize, &ax, &ay, &az, &gx, &gy, &gz, &mean_ax, &mean_ay, &mean_az, &mean_gx, &mean_gy, &mean_gz);
     if (abs(mean_ax)<=acel_deadzone) ready++;
     else ax_offset=ax_offset-mean_ax/acel_deadzone;
  
@@ -92,41 +87,48 @@ void mpu_device::calibrate(int accuracy){
     else gz_offset=gz_offset-mean_gz/(giro_deadzone+1);
  
     if (ready==6) break;
+    
+    Serial << "D:Stage " << ready << "/6" << endl;
   }
-  mean_sensors(accuracy,&ax, &ay, &az, &gx, &gy, &gz, &mean_ax, &mean_ay, &mean_az, &mean_gx, &mean_gy, &mean_gz);
-  
+  delay(5);
+  mean_sensors(buffersize, &ax, &ay, &az, &gx, &gy, &gz, &mean_ax, &mean_ay, &mean_az, &mean_gx, &mean_gy, &mean_gz);
   mpu->setXAccelOffset(ax_offset);
   mpu->setYAccelOffset(ay_offset);
   mpu->setZAccelOffset(az_offset);
   mpu->setXGyroOffset(gx_offset);
   mpu->setYGyroOffset(gy_offset);
   mpu->setZGyroOffset(gz_offset);
-
- // write_VectorFloat_eeprom(
+  
+  set_VectorFloat_eeprom( gyro_offset_addr, VectorFloat(gx_offset, gy_offset, gz_offset));
+  set_VectorFloat_eeprom( accel_offset_addr, VectorFloat(ax_offset, ay_offset, az_offset));
+  
+  Serial << "D:Set offsets to EEPROM: <" << gx_offset << ',' << gy_offset << ',' << gz_offset << ">,<" << ax_offset << ',' << ay_offset << ',' << az_offset << '>' << endl;
+  
+  
 }
 
-inline void mpu_device::mean_sensors(int buffersize, int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, int* mean_ax, int*mean_ay, int*mean_az, int*mean_gx, int*mean_gy, int*mean_gz){
-  long i=0,buff_ax=0,buff_ay=0,buff_az=0,buff_gx=0,buff_gy=0,buff_gz=0;
+void mpu_device::mean_sensors(int buffersize, int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, int* mean_ax, int* mean_ay, int* mean_az, int* mean_gx, int* mean_gy, int* mean_gz){
+  long long i=0,buff_ax=0,buff_ay=0,buff_az=0,buff_gx=0,buff_gy=0,buff_gz=0;
  
   while (i<(buffersize+101)){
     // read raw accel/gyro measurements from device
     mpu->getMotion6(ax, ay, az, gx, gy, gz);
-    
+
     if (i>100 && i<=(buffersize+100)){ //First 100 measures are discarded
-      buff_ax=buff_ax+ax;
-      buff_ay=buff_ay+ay;
-      buff_az=buff_az+az;
-      buff_gx=buff_gx+gx;
-      buff_gy=buff_gy+gy;
-      buff_gz=buff_gz+gz;
+      buff_ax = buff_ax + (*ax);
+      buff_ay = buff_ay + (*ay);
+      buff_az = buff_az + (*az);
+      buff_gx = buff_gx + (*gx);
+      buff_gy = buff_gy + (*gy);
+      buff_gz = buff_gz + (*gz);
     }
     if (i==(buffersize+100)){
-      *mean_ax=buff_ax/buffersize;
-      *mean_ay=buff_ay/buffersize;
-      *mean_az=buff_az/buffersize;
-      *mean_gx=buff_gx/buffersize;
-      *mean_gy=buff_gy/buffersize;
-      *mean_gz=buff_gz/buffersize;
+      (*mean_ax) = buff_ax / buffersize;
+      (*mean_ay) = buff_ay / buffersize;
+      (*mean_az) = buff_az / buffersize;
+      (*mean_gx) = buff_gx / buffersize;
+      (*mean_gy) = buff_gy / buffersize;
+      (*mean_gz) = buff_gz / buffersize;
     }
     i++;
     delay(2); //Needed so we don't get repeated measures
@@ -160,7 +162,7 @@ Quaternion mpu_device::get_quaternion(){
   return mpu_device::last_quaternion;
 }
 
-int mpu_device::is_available(){
+int mpu_device::get_last_error(){
   return mpu_device::last_error;
 }
 
@@ -174,4 +176,22 @@ String mpu_device::get_error_desc(int code){
 void mpu_device::dmp_data_callback(){
   mpu_device::mpu_interrupt = true;
 }
+
+static VectorFloat mpu_device::get_VectorFloat_eeprom(int offset){
+  vec3f in;
+  EEPROM.get(offset, in);
+  if(isnan(in.x) || isnan(in.y) || isnan(in.z)){
+    return VectorFloat(0,0,0);
+  }
+  return VectorFloat(in.x, in.y, in.z);
+}
+
+static void mpu_device::set_VectorFloat_eeprom(int offset, VectorFloat in_vec){
+  vec3f in;
+  in.x = in_vec.x;
+  in.y = in_vec.y;
+  in.z = in_vec.z;
+  EEPROM.put(offset, in);
+}
+
 

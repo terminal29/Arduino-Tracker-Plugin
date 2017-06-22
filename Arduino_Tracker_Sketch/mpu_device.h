@@ -4,10 +4,11 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "MPU6050.h"
+#include <EEPROM.h>
+#include "print_helper.h"
+#include "Wire.h"
 
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    #include "Wire.h"
-#endif
+typedef struct vec3f { float x = 0,y = 0, z = 0; } vec3f;
 
 class mpu_device{
   public:
@@ -16,17 +17,17 @@ class mpu_device{
     void update();
     void close();
     Quaternion get_quaternion();
-    int is_available();
+    int get_last_error();
     String get_error_desc(int code);
     void dmp_data_callback();
 
     static VectorFloat get_VectorFloat_eeprom(int offset);
 
     volatile bool mpu_interrupt = false; 
-    const int interrupt_pin = 2;
-    const int gyro_epprom_offset = 0;
-    const int accel_eeprom_offset = sizeof(VectorFloat);
-  
+    static const int interrupt_pin = 2;
+    static const int gyro_offset_addr = 0;
+    static const int accel_offset_addr = sizeof(vec3f);
+    
   private:
     mpu_device();
 
@@ -54,7 +55,7 @@ class mpu_device{
 
     void mean_sensors(int buffersize, int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, int* mean_ax, int*mean_ay, int*mean_az, int*mean_gx, int*mean_gy, int*mean_gz);
 
-    void write_VectorFloat_eeprom(VectorFloat data, int offset);
+    void set_VectorFloat_eeprom(int offset, VectorFloat data);
     
 };
 
