@@ -5,14 +5,10 @@
 #include "mpu_device.h"
 #include "print_helper.h"
 
-
 VectorFloat gyro_offset;
 VectorFloat accel_offset;
 
 mpu_device* device;
-
-#define LED_PIN 13
-bool blinkState = false;
 
 void dmp_data_callback(){
   device->dmp_data_callback();
