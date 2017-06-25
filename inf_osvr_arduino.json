@@ -1,0 +1,17 @@
+{
+  "deviceVendor": "Arduino",
+  "deviceName": "ArduinoTracker",
+  "author": "InfiniteLlamas",
+  "version": "0.3a",
+  "lastModified": "2017-06-24T00:00:00.000Z",
+  "interfaces": {
+    "tracker": {
+      "count": 1,
+      "position": false,
+      "orientation": true
+    }
+  },
+  "semantic": {
+    "arduino": "tracker/0"
+  }
+}

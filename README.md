@@ -1,62 +1,31 @@
-# Arduino-Tracker-Plugin
-Plugin for OSVR that uses an Arduino + MPU6050 to do rotational headtracking. Very unstable so use at your own risk :p
+# Arduino Tracker
+Plugin for OSVR that uses an Arduino + MPU6050 to do rotational headtracking. 
 
-**This guide and plugin is a work in progress so dont expect everything to be buttery smooth just yet.**
-
-* Arduino Code is just a slight rewrite of https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/MPU6050
-	and requires i2c and mpu6050 libs from the above repo to be installed.
-
-* Using Serial Library from https://github.com/wjwwood/serial
-
-* Using Quaternion-AxisAngle conversions from http://www.euclideanspace.com/maths/geometry/rotations/conversions/
+* Arduino code is based off of [Jeffs MPU6050 DMP6 example script](https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/MPU6050)
+* Plugin uses [Wills C++ serial library](https://github.com/wjwwood/serial)
 
 # How to use
-1. Load up the arduino IDE and make sure you have installed the required libs (https://www.arduino.cc/en/Guide/Libraries) then open up the *Arduino_Tracker_Sketch.ino* file and upload it to your board. Once it is done, open up the serial input and set line endings to *Newline* and serial speed to *115200 baud*. Now when you type anything into the input,
-If you get back:
-
-		Hello from Arduino
-
-	then you are all set.
-	
-2. Copy the *inf_arduino_tracker.dll* and *inf_arduino_tracker.json* files into the *osvr-plugins-0* folder of your OSVR install directory (You do not need to modify these files).
-
-
-
-3. In the main OSVR binary folder (where your osvr_server.exe is), there should be a file called *osvr_server_config.json*. You want to open this file with notepad++ or your choice of text editor, and add or replace the line in "aliases" with:
-	
-	```		
-	"aliases": {
-		"/me/head": "/inf_arduino_tracker/Arduino Tracker/semantic/hmd"
-	}
-	```
-	for example, my server config looked like this:
-	```
-	{
-		"display": "displays/Oculus_Rift_DK1.json",
-		"renderManagerConfig": "renderManager.extended.landscape.json"
-	}
-	```
-	and now looks like this:
-	```
-	{
-		"display": "displays/Oculus_Rift_DK1.json",
-		"renderManagerConfig": "renderManager.extended.landscape.json",
-		"aliases": {
-		"/me/head": "/inf_arduino_tracker/Arduino Tracker/semantic/hmd"
+1. Open Arduino_Tracker_Sketch in the Arduino IDE, and upload it to your board.
+    * Open the serial monitor and set the baudrate to 38400 and if you see something like this, it worked: ![Q:WW:XX:YY:ZZ](http://i.imgur.com/oWhoYfa.png)
+2. Place the dll into your osvr-plugins-0 folder.
+3. Add the following to your osvr_server_config file, substituting "com4" with the com port your arduino is connected to:
+```
+"drivers": [{
+		"plugin": "inf_osvr_arduino",
+		"driver": "ArduinoTracker",
+		"params": {
+			"port":"com4"
 		}
+	}],
+	...
+	"aliases": {
+		"/me/head": "/inf_osvr_arduino/ArduinoTracker/semantic/arduino"
 	}
-	```
+```
+4. Run the calibration procedure the first time you use the plugin with the key combo CTRL + SHIFT + I. See notes below for more info...
 
-4. Go to device manager and find out which COM port your arduino is connected on
-
-5. Run OSVR and type in the com port (ie com4 you would type *COM4* etc...)
-
-6. Wait for it to connect and test tracking with one of the osvr tracking test programs or the tracker viewer. 
-
-**notes**
-
-The X axis of your MPU should be pointing toward the left, and y axis pointing toward you and be mounted on the front of your headset for the axes to align.
-
-If your axes are slightly off, run the calibration script in the MPU6050 library examples and find your offsets, then modify the existing offsets in the Arduino Tracker Sketch file and reupload to your board.
-
-Tested with snapshot OSVR-Core-Snapshot-v0.6-1935-ga2cba4b6-build281-vs12-64bit, some older versions will crash with this plugin, if yours does this please update to a later version of the osvr server.
+##### notes
+* The X axis of your MPU should be pointing toward the left, and y axis pointing toward you and be mounted on the front of your headset for the axes to align.
+* Use the key combo CTRL + SHIFT + I from anywhere to begin the calibration procedure.
+    * Calibration will sometimes hang. Simply reconnect the arduino to reset and try again (plugin will auto-reconnect to arduino).
+    * You will need to run calibration the first time you use the plugin. The calibration procedure saves the offsets to eeprom so you should only need to run it once.
