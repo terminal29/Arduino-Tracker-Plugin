@@ -56,7 +56,7 @@ namespace {
 			try {
 				serial.setTimeout(serial::Timeout::simpleTimeout(1000));
 				serial.setPort(port);
-				serial.setBaudrate(38400);
+				serial.setBaudrate(115200);
 				while (!serial.isOpen()) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					serial.open();
@@ -143,6 +143,8 @@ namespace {
 			m_dev.initAsync(ctx, DEVICE_NAME, opts);
 			m_dev.sendJsonDescriptor(inf_osvr_arduino_json);
 			m_dev.registerUpdateCallback(this);
+
+			osvrQuatSetIdentity(&rotation_offset);
 		}
 
 		OSVR_ReturnCode update() {
@@ -152,7 +154,12 @@ namespace {
 			}
 			OSVR_Quaternion ard_quat = arduino_rotation.load(std::memory_order_relaxed);
 			tracker_rotation = get_osvr_quat_from_arduino_quat(ard_quat);
-			
+
+			if (GetAsyncKeyState(VK_SHIFT) != 0 && GetAsyncKeyState(VK_CONTROL) != 0 && GetAsyncKeyState(0x4F) != 0) {
+				rotation_offset = quatConjugate(tracker_rotation);
+			}
+
+			tracker_rotation = quatMultiply(rotation_offset, tracker_rotation);
 			osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &tracker_rotation, 0);
 			return OSVR_RETURN_SUCCESS;
 		}
@@ -165,9 +172,79 @@ namespace {
 		osvr::pluginkit::DeviceToken m_dev;
 		OSVR_TrackerDeviceInterface m_tracker;
 		OSVR_Quaternion tracker_rotation;
+		OSVR_Quaternion rotation_offset;
 		OSVR_PluginRegContext m_ctx;
 
 		struct AxisAngle { float a, x, y, z; };
+
+		OSVR_Quaternion quatConjugate(OSVR_Quaternion a) {
+			OSVR_Quaternion r;
+			osvrQuatSetW(&r, osvrQuatGetW(&a));
+			osvrQuatSetX(&r, -osvrQuatGetX(&a));
+			osvrQuatSetY(&r, -osvrQuatGetY(&a));
+			osvrQuatSetZ(&r, -osvrQuatGetZ(&a));
+
+			return r;
+		}
+
+		OSVR_Quaternion quatGetYawOffset(OSVR_Quaternion a) {
+			OSVR_Quaternion r;
+			float qw = osvrQuatGetW(&a);
+			float qx = osvrQuatGetX(&a);
+			float qy = osvrQuatGetY(&a);
+			float qz = osvrQuatGetZ(&a);
+
+			double ysqr = qy * qy;
+
+			// roll (x-axis rotation)
+			double t0 = +2.0 * (qw * qx + qy * qz);
+			double t1 = +1.0 - 2.0 * (qx * qx + ysqr);
+			float roll = std::atan2(t0, t1);
+
+			// pitch (y-axis rotation)
+			double t2 = +2.0 * (qw * qy - qz * qx);
+			t2 = t2 > 1.0 ? 1.0 : t2;
+			t2 = t2 < -1.0 ? -1.0 : t2;
+			float pitch = std::asin(t2);
+
+			// yaw (z-axis rotation)
+			double t3 = +2.0 * (qw * qz + qx * qy);
+			double t4 = +1.0 - 2.0 * (ysqr + qz * qz);
+			float yaw = std::atan2(t3, t4);
+
+
+			t0 = std::cos(roll * 0.5);
+			t1 = std::sin(roll * 0.5);
+			t2 = std::cos(yaw * 0.5);
+			t3 = std::sin(yaw * 0.5);
+			t4 = std::cos(pitch * 0.5);
+			double t5 = std::sin(pitch * 0.5);
+
+			osvrQuatSetW(&r, t0 * t2 * t4 + t1 * t3 * t5);
+			osvrQuatSetX(&r, t0 * t3 * t4 - t1 * t2 * t5);
+			osvrQuatSetY(&r, t0 * t2 * t5 + t1 * t3 * t4);
+			osvrQuatSetZ(&r, t1 * t2 * t4 - t0 * t3 * t5);
+			return r;
+		}
+
+		OSVR_Quaternion quatMultiply(OSVR_Quaternion a, OSVR_Quaternion b) {
+			OSVR_Quaternion r;
+			float q1x = osvrQuatGetX(&a);
+			float q1y = osvrQuatGetY(&a);
+			float q1z = osvrQuatGetZ(&a);
+			float q1w = osvrQuatGetW(&a);
+
+			float q2x = osvrQuatGetX(&b);
+			float q2y = osvrQuatGetY(&b); 
+			float q2z = osvrQuatGetZ(&b);
+			float q2w = osvrQuatGetW(&b);
+
+			osvrQuatSetX(&r, q1x * q2w + q1y * q2z - q1z * q2y + q1w * q2x);
+			osvrQuatSetY(&r, -q1x * q2z + q1y * q2w + q1z * q2x + q1w * q2y);
+			osvrQuatSetZ(&r, q1x * q2y - q1y * q2x + q1z * q2w + q1w * q2z);
+			osvrQuatSetW(&r, -q1x * q2x - q1y * q2y - q1z * q2z + q1w * q2w);
+			return r;
+		}
 
 		OSVR_Quaternion get_osvr_quat_from_arduino_quat(OSVR_Quaternion q) {
 			AxisAngle aa = quat2AAngle(q);

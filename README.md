@@ -23,9 +23,12 @@ Plugin for OSVR that uses an Arduino + MPU6050 to do rotational headtracking.
 	}
 ```
 4. Run the calibration procedure the first time you use the plugin with the key combo CTRL + SHIFT + I. See notes below for more info...
+5. Place your headset in the "Forward" direction and press the key combo CTRL + SHIFT + O to reset this position to 0 (looking directly forward on the Z axis)
 
 ##### notes
 * The X axis of your MPU should be pointing toward the left, and y axis pointing toward you and be mounted on the front of your headset for the axes to align.
 * Use the key combo CTRL + SHIFT + I from anywhere to begin the calibration procedure.
     * Calibration will sometimes hang. Simply reconnect the arduino to reset and try again (plugin will auto-reconnect to arduino).
     * You will need to run calibration the first time you use the plugin. The calibration procedure saves the offsets to eeprom so you should only need to run it once.
+* Use the key combo CTRL + SHIFT + O from anywhere to reset your current rotation to 0 (looking directly forward on the Z axis).
+	* Because the MPU6050 doesn't have a magnetometer, you may need to reset the rotation occasionally as it has a tendency to drift over time.
