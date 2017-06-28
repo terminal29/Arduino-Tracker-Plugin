@@ -6,7 +6,7 @@ Plugin for OSVR that uses an Arduino + MPU6050 to do rotational headtracking.
 
 # How to use
 1. Open Arduino_Tracker_Sketch in the Arduino IDE, and upload it to your board.
-    * Open the serial monitor and set the baudrate to 38400 and if you see something like this, it worked: ![Q:WW:XX:YY:ZZ](http://i.imgur.com/oWhoYfa.png)
+    * Open the serial monitor and set the baudrate to 115200 and if you see something like this, it worked: ![Q:WW:XX:YY:ZZ](https://i.imgur.com/SwF4zel.png)
 2. Place the dll into your osvr-plugins-0 folder.
 3. Add the following to your osvr_server_config file, substituting "com4" with the com port your arduino is connected to:
 ```
